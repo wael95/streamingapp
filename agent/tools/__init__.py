@@ -148,7 +148,12 @@ def dispatch(name: str, tool_input: dict, ctx: dict) -> str:
     if name == "send_whatsapp":
         if bridge is None:
             return "error: bridge not available"
-        whatsapp.send_whatsapp(bridge, tool_input["text"], to=ctx.get("reply_to"))
+        whatsapp.send_whatsapp(
+            bridge,
+            tool_input["text"],
+            to=ctx.get("reply_to"),
+            broadcast=bool(ctx.get("broadcast")),
+        )
         return "sent"
     if name == "get_technicals":
         return _json(technicals.get_technicals(settings, tool_input["ticker"]))

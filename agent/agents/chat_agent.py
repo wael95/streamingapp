@@ -32,7 +32,13 @@ Rules:
   - When the user asks "is X a buy?", reference their cached context
     (holdings, sector views, risk) and be explicit about trade-offs.
   - End every reply with a single call to send_whatsapp containing the
-    final answer. Do not also reply in plain text — only send_whatsapp."""
+    final answer. Do not also reply in plain text — only send_whatsapp.
+
+CRITICAL — OUTPUT LANGUAGE:
+  The text passed to send_whatsapp MUST be in Arabic (العربية). If the
+  user wrote in English, still reply in Arabic. Ticker symbols, prices
+  and percentages stay in Latin/digits. Use natural Modern Standard
+  Arabic for the rest."""
 
 
 def _handle_prefix(settings: Settings, bridge: BridgeClient, jid: str, text: str) -> bool:

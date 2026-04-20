@@ -27,9 +27,9 @@ from agent.scheduler import build_scheduler
 log = logging.getLogger(__name__)
 
 
-def _oneshot(name: str, settings, bridge: BridgeClient) -> int:
+def _oneshot(name: str, settings, bridge: BridgeClient, tickers: list[str] | None = None) -> int:
     if name == "watchlist":
-        watchlist_agent.run(settings, bridge)
+        watchlist_agent.run(settings, bridge, tickers=tickers)
         return 0
     if name == "buy":
         buy_agent.run(settings, bridge)
@@ -39,7 +39,7 @@ def _oneshot(name: str, settings, bridge: BridgeClient) -> int:
         ohlcv_cache.refresh_universe(
             adapter_name=settings.data_adapter,
             universe_setting=rules.get("universe", "sp500_plus_watchlist"),
-            watchlist=settings.watchlist_tickers,
+            watchlist=tickers or settings.watchlist_tickers,
             days=int(rules.get("lookback_days", 260)),
         )
         return 0
@@ -50,6 +50,10 @@ def _oneshot(name: str, settings, bridge: BridgeClient) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", help="one-shot job: watchlist | buy | refresh")
+    ap.add_argument(
+        "--tickers",
+        help="Comma-separated ticker override, e.g. MINTS,FCHL,VCIG. Used by --run watchlist and --run refresh.",
+    )
     args = ap.parse_args()
 
     settings = load_settings()
@@ -57,8 +61,12 @@ def main() -> int:
     store.init(settings.db_path)
     bridge = BridgeClient(settings)
 
+    tickers = None
+    if args.tickers:
+        tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+
     if args.run:
-        return _oneshot(args.run, settings, bridge)
+        return _oneshot(args.run, settings, bridge, tickers=tickers)
 
     log.info("agent starting; tz=%s bridge=%s", settings.tz, settings.bridge_url)
     sched = build_scheduler(settings, bridge)

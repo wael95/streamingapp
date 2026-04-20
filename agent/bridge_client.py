@@ -42,6 +42,15 @@ class BridgeClient:
             r.raise_for_status()
             store.log_message(jid, "out", c)
 
+    def broadcast(self, text: str) -> None:
+        """Send to every allowlisted number (scheduled jobs use this)."""
+        for num in self.settings.allowed_numbers:
+            jid = f"{num}@s.whatsapp.net"
+            try:
+                self.send(text, to=jid)
+            except Exception:
+                log.exception("broadcast send failed to %s", jid)
+
     def poll_forever(self, handler: Callable[..., None], interval: float = 2.0) -> None:
         while True:
             try:

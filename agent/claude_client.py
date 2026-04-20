@@ -76,6 +76,7 @@ def run_agent(
     user_message: str,
     session_id: str | None = None,
     reply_to: str | None = None,
+    broadcast: bool = False,
     max_turns: int = 8,
 ) -> str:
     client = Anthropic(api_key=settings.anthropic_api_key)
@@ -92,7 +93,12 @@ def run_agent(
     # `reply_to` is consumed by the send_whatsapp tool. Scheduled jobs
     # pass None -> defaults to OWNER_JID inside bridge.send. Chat passes
     # the sender's JID so replies go back to whoever asked.
-    ctx = {"settings": settings, "bridge": bridge, "reply_to": reply_to}
+    ctx = {
+        "settings": settings,
+        "bridge": bridge,
+        "reply_to": reply_to,
+        "broadcast": broadcast,
+    }
     final_text = ""
 
     for turn in range(max_turns):

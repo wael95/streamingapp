@@ -95,9 +95,9 @@ def handle(
         role_instructions=INSTRUCTIONS,
         user_message=text,
         session_id=jid,
+        reply_to=jid,  # critical: replies go back to the asker, not OWNER_JID
     )
     if final and not _last_send_was_via_tool():
-        # Tool path is preferred; this is only a safety net.
         bridge.send(final, to=jid)
 
 

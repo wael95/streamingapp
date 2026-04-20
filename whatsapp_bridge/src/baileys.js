@@ -78,18 +78,22 @@ export async function startBaileys({ queue, onConnected }) {
     });
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
-      if (type !== 'notify') return;
+      console.log(`[upsert] type=${type} count=${messages?.length || 0}`);
+      if (type !== 'notify' && type !== 'append') return;
       for (const m of messages) {
-        if (!m.message) continue;
-        // Skip only echoes of messages we sent from the bridge itself.
-        // A fromMe message NOT in our sent-set means the user typed it
-        // from their phone (including self-chat to themselves).
-        if (m.key.fromMe && sentByUs.has(m.key.id)) continue;
-        const jid = m.key.remoteJid;
-        if (!jid || jid.endsWith('@g.us')) continue;
+        const jid = m.key?.remoteJid || '';
         const number = numberFromJid(jid);
+        const fromMe = !!m.key?.fromMe;
+        const echo = fromMe && sentByUs.has(m.key?.id);
+        const text = extractText(m.message || {}).trim();
+        console.log(
+          `[upsert] from=${jid} fromMe=${fromMe} echo=${echo} ` +
+          `allowed=${config.allowedNumbers.includes(number)} text=${JSON.stringify(text).slice(0,80)}`
+        );
+        if (!m.message) continue;
+        if (echo) continue;
+        if (!jid || jid.endsWith('@g.us')) continue;
         if (!config.allowedNumbers.includes(number)) continue;
-        const text = extractText(m.message).trim();
         if (!text) continue;
         queue.push({
           from: jid,
@@ -97,6 +101,7 @@ export async function startBaileys({ queue, onConnected }) {
           text,
           ts: Number(m.messageTimestamp) || Math.floor(Date.now() / 1000),
         });
+        console.log(`[upsert] queued from=${number} text=${JSON.stringify(text).slice(0,80)}`);
       }
     });
   };

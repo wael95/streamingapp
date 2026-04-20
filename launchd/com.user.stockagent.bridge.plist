@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  WhatsApp bridge launchd agent.
+
+  Install once:
+    ./scripts/load_launchd.sh
+  It copies this file to ~/Library/LaunchAgents/ with REPO_ROOT substituted,
+  then `launchctl load -w` it.
+
+  The __REPO_ROOT__ placeholder is replaced at install time.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.user.stockagent.bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>node</string>
+    <string>__REPO_ROOT__/whatsapp_bridge/src/index.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO_ROOT__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>__REPO_ROOT__/logs/bridge.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO_ROOT__/logs/bridge.err.log</string>
+</dict>
+</plist>

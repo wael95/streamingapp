@@ -1,0 +1,29 @@
+# My investing context
+
+Copy this file to `config/context.md` and edit freely. Claude reads it on
+every daily run and every ad-hoc question, so the more specific the
+better.
+
+## Goals and horizon
+- Long-term (5+ years), dividend + growth.
+
+## Risk tolerance
+- Moderate. No margin. Max single-position 10% of portfolio.
+
+## Current holdings
+- AAPL (~30%)
+- MSFT (~15%)
+- Cash ~20%
+
+## Sector views
+- Overweight: AI infrastructure, cybersecurity.
+- Underweight: consumer discretionary.
+
+## Hard nos
+- Tobacco, gambling.
+- Any stock with < $1B market cap.
+
+## Notes to the agent
+- Prefer ideas with clear catalysts in the next 3 months.
+- Flag earnings within 7 days in watchlist updates.
+- Keep messages short — I read on my phone.

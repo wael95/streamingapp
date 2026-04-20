@@ -1,0 +1,12 @@
+# Default watchlist. Agent A reads this every day at 15:50 Riyadh.
+# You can edit directly, or send "!watch ADD NVDA" / "!watch REMOVE NVDA"
+# on WhatsApp.
+tickers:
+  - AAPL
+  - NVDA
+  - MSFT
+  - TSLA
+  - GOOGL
+notes:
+  AAPL: core position
+  NVDA: trim above $X if Y happens

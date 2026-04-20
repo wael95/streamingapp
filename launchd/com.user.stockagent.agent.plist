@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Python agent launchd agent.
+  See com.user.stockagent.bridge.plist for install steps.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.user.stockagent.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__REPO_ROOT__/.venv/bin/python</string>
+    <string>-m</string>
+    <string>agent.main</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__REPO_ROOT__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>TZ</key>
+    <string>Asia/Riyadh</string>
+    <key>PYTHONUNBUFFERED</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>__REPO_ROOT__/logs/agent.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO_ROOT__/logs/agent.err.log</string>
+</dict>
+</plist>

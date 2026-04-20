@@ -56,8 +56,24 @@ def _f(v) -> float | None:
 class YFinanceAdapter(StockDataAdapter):
     name = "yfinance"
 
-    @retry(**_RETRY)
     def quote(self, symbol: str) -> Quote:
+        try:
+            return self._quote_inner(symbol)
+        except Exception as e:
+            log.info("yfinance quote failed for %s: %s", symbol, e)
+            return Quote(
+                symbol=symbol.upper(),
+                price=0.0,
+                prev_close=None,
+                change_pct=None,
+                day_low=None,
+                day_high=None,
+                volume=None,
+                currency=None,
+            )
+
+    @retry(**_RETRY)
+    def _quote_inner(self, symbol: str) -> Quote:
         t = yf.Ticker(symbol)
         fi = getattr(t, "fast_info", {}) or {}
         price = _f(fi.get("last_price") or fi.get("lastPrice"))
@@ -76,8 +92,20 @@ class YFinanceAdapter(StockDataAdapter):
             currency=fi.get("currency"),
         )
 
-    @retry(**_RETRY)
     def fundamentals(self, symbol: str) -> Fundamentals:
+        try:
+            return self._fundamentals_inner(symbol)
+        except Exception as e:
+            log.info("yfinance fundamentals failed for %s: %s", symbol, e)
+            return Fundamentals(
+                symbol=symbol.upper(),
+                market_cap=None, pe_ratio=None, eps=None,
+                dividend_yield=None, sector=None, industry=None,
+                next_earnings=None, beta=None,
+            )
+
+    @retry(**_RETRY)
+    def _fundamentals_inner(self, symbol: str) -> Fundamentals:
         t = yf.Ticker(symbol)
         info = {}
         try:
@@ -109,8 +137,15 @@ class YFinanceAdapter(StockDataAdapter):
             beta=_f(info.get("beta") or info.get("beta3Year")),
         )
 
-    @retry(**_RETRY)
     def news(self, symbol: str, limit: int = 5) -> list[NewsItem]:
+        try:
+            return self._news_inner(symbol, limit)
+        except Exception as e:
+            log.info("yfinance news failed for %s: %s", symbol, e)
+            return []
+
+    @retry(**_RETRY)
+    def _news_inner(self, symbol: str, limit: int = 5) -> list[NewsItem]:
         t = yf.Ticker(symbol)
         items = []
         try:
@@ -141,8 +176,15 @@ class YFinanceAdapter(StockDataAdapter):
                 out.append(NewsItem(title=title, publisher=publisher, url=url, ts=ts))
         return out
 
-    @retry(**_RETRY)
     def ohlcv(self, symbol: str, days: int = 260) -> list[OhlcvBar]:
+        try:
+            return self._ohlcv_inner(symbol, days)
+        except Exception as e:
+            log.info("yfinance ohlcv failed for %s: %s", symbol, e)
+            return []
+
+    @retry(**_RETRY)
+    def _ohlcv_inner(self, symbol: str, days: int = 260) -> list[OhlcvBar]:
         # `period` strings keep us away from date arithmetic & Yahoo's
         # varying calendar handling.
         period = "1y" if days <= 260 else "2y"

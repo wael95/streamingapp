@@ -74,8 +74,8 @@ def main() -> int:
     signal.signal(signal.SIGINT, _graceful)
 
     # Bridge poll loop runs on the main thread.
-    def handler(jid: str, text: str) -> None:
-        chat_agent.handle(settings, bridge, jid, text)
+    def handler(jid: str, text: str, number: str | None = None) -> None:
+        chat_agent.handle(settings, bridge, jid, text, number)
 
     try:
         while not stop["flag"]:

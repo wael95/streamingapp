@@ -78,30 +78,44 @@ export async function startBaileys({ queue, onConnected }) {
     });
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
-      console.log(`[upsert] type=${type} count=${messages?.length || 0}`);
       if (type !== 'notify' && type !== 'append') return;
       for (const m of messages) {
-        const jid = m.key?.remoteJid || '';
-        const number = numberFromJid(jid);
+        if (!m.message) continue;
         const fromMe = !!m.key?.fromMe;
         const echo = fromMe && sentByUs.has(m.key?.id);
-        const text = extractText(m.message || {}).trim();
-        console.log(
-          `[upsert] from=${jid} fromMe=${fromMe} echo=${echo} ` +
-          `allowed=${config.allowedNumbers.includes(number)} text=${JSON.stringify(text).slice(0,80)}`
-        );
-        if (!m.message) continue;
         if (echo) continue;
+        const jid = m.key?.remoteJid || '';
         if (!jid || jid.endsWith('@g.us')) continue;
-        if (!config.allowedNumbers.includes(number)) continue;
+        // WhatsApp now uses @lid (Linked-ID) JIDs for some chats. The
+        // phone-number form is exposed via several optional fields
+        // depending on the Baileys version. Collect every candidate
+        // and accept the message if ANY resolves to an allowlisted
+        // phone number.
+        const candidates = [
+          jid,
+          m.key?.participant,
+          m.key?.participantPn,
+          m.key?.senderPn,
+          m.key?.remoteJidAlt,
+        ].filter(Boolean);
+        const numbers = candidates.map(numberFromJid).filter(Boolean);
+        const matched = numbers.find((n) =>
+          config.allowedNumbers.includes(n)
+        );
+        const text = extractText(m.message).trim();
+        console.log(
+          `[upsert] jid=${jid} fromMe=${fromMe} cands=${numbers.join('|')} ` +
+          `matched=${matched || '-'} text=${JSON.stringify(text).slice(0, 80)}`
+        );
+        if (!matched) continue;
         if (!text) continue;
         queue.push({
           from: jid,
-          number,
+          number: matched,
           text,
           ts: Number(m.messageTimestamp) || Math.floor(Date.now() / 1000),
         });
-        console.log(`[upsert] queued from=${number} text=${JSON.stringify(text).slice(0,80)}`);
+        console.log(`[upsert] queued from=${matched} jid=${jid}`);
       }
     });
   };

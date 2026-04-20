@@ -61,9 +61,18 @@ def _handle_prefix(settings: Settings, bridge: BridgeClient, jid: str, text: str
     return False
 
 
-def handle(settings: Settings, bridge: BridgeClient, jid: str, text: str) -> None:
-    if jid.split("@")[0].split(":")[0] not in settings.allowed_numbers:
-        log.warning("chat: rejecting non-allowlisted jid %s", jid)
+def handle(
+    settings: Settings,
+    bridge: BridgeClient,
+    jid: str,
+    text: str,
+    number: str | None = None,
+) -> None:
+    # Bridge already passes the resolved phone number when known (handles
+    # WhatsApp's @lid form). Fall back to parsing the JID if not provided.
+    phone = number or jid.split("@")[0].split(":")[0]
+    if phone not in settings.allowed_numbers:
+        log.warning("chat: rejecting non-allowlisted phone=%s jid=%s", phone, jid)
         return
     if _handle_prefix(settings, bridge, jid, text):
         return

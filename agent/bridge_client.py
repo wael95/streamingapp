@@ -42,7 +42,7 @@ class BridgeClient:
             r.raise_for_status()
             store.log_message(jid, "out", c)
 
-    def poll_forever(self, handler: Callable[[str, str], None], interval: float = 2.0) -> None:
+    def poll_forever(self, handler: Callable[..., None], interval: float = 2.0) -> None:
         while True:
             try:
                 cursor = store.get_cursor()
@@ -52,9 +52,10 @@ class BridgeClient:
                 for m in data.get("messages", []):
                     jid = m["from"]
                     text = m["text"]
+                    number = m.get("number")
                     store.log_message(jid, "in", text)
                     try:
-                        handler(jid, text)
+                        handler(jid, text, number)
                     except Exception:
                         log.exception("chat handler failed jid=%s", jid)
                 if data.get("cursor") is not None:

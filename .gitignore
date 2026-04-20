@@ -2,8 +2,8 @@
 config/context.md
 whatsapp_bridge/auth/
 whatsapp_bridge/node_modules/
-logs/
-data/
+/logs/
+/data/
 __pycache__/
 *.pyc
 .venv/

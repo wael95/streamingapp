@@ -34,6 +34,15 @@ export async function startBaileys({ queue, onConnected }) {
   const { version } = await fetchLatestBaileysVersion();
 
   const state_ = { sock: null, connected: false };
+  // Track IDs of messages we sent via the bridge so we can ignore them
+  // coming back through messages.upsert as fromMe=true. Messages the
+  // user types on their phone (even in self-chat) are also fromMe=true
+  // but won't be in this set, so they flow through.
+  const sentByUs = new Set();
+  const markSent = (id) => {
+    sentByUs.add(id);
+    setTimeout(() => sentByUs.delete(id), 5 * 60 * 1000);
+  };
 
   const connect = () => {
     const sock = makeWASocket({
@@ -71,7 +80,11 @@ export async function startBaileys({ queue, onConnected }) {
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (type !== 'notify') return;
       for (const m of messages) {
-        if (!m.message || m.key.fromMe) continue;
+        if (!m.message) continue;
+        // Skip only echoes of messages we sent from the bridge itself.
+        // A fromMe message NOT in our sent-set means the user typed it
+        // from their phone (including self-chat to themselves).
+        if (m.key.fromMe && sentByUs.has(m.key.id)) continue;
         const jid = m.key.remoteJid;
         if (!jid || jid.endsWith('@g.us')) continue;
         const number = numberFromJid(jid);
@@ -95,7 +108,8 @@ export async function startBaileys({ queue, onConnected }) {
     send: async (to, text) => {
       if (!state_.sock) throw new Error('socket not ready');
       const jid = normalizeJid(to);
-      await state_.sock.sendMessage(jid, { text });
+      const res = await state_.sock.sendMessage(jid, { text });
+      if (res?.key?.id) markSent(res.key.id);
       return { to: jid };
     },
   };

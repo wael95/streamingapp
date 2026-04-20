@@ -16,4 +16,5 @@ def get_fundamentals(settings: Settings, ticker: str) -> dict:
         "sector": f.sector,
         "industry": f.industry,
         "next_earnings": f.next_earnings.isoformat() if f.next_earnings else None,
+        "beta": f.beta,
     }

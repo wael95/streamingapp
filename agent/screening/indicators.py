@@ -63,3 +63,25 @@ def avg_volume(volumes: np.ndarray, n: int = 30) -> float | None:
     if volumes.size < n:
         return None
     return float(np.mean(volumes[-n:]))
+
+
+def beta(stock_closes: np.ndarray, benchmark_closes: np.ndarray, n: int = 252) -> float | None:
+    """Beta of `stock` vs `benchmark` over the last `n` aligned bars.
+
+    Uses daily log returns. Requires at least 60 bars of overlap.
+    """
+    m = min(stock_closes.size, benchmark_closes.size)
+    if m < 60:
+        return None
+    s = stock_closes[-min(n, m):]
+    b = benchmark_closes[-min(n, m):]
+    sr = np.diff(np.log(s))
+    br = np.diff(np.log(b))
+    k = min(sr.size, br.size)
+    if k < 30:
+        return None
+    sr, br = sr[-k:], br[-k:]
+    var_b = float(np.var(br))
+    if var_b == 0:
+        return None
+    return float(np.cov(sr, br, ddof=0)[0, 1] / var_b)

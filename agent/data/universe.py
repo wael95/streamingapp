@@ -1,25 +1,59 @@
 """Screening universe loader.
 
-V1 universe: S&P 500 (shipped as a static CSV) union the user's watchlist.
-We don't scrape Wikipedia at runtime; the static file is good enough for a
-daily 3:50 PM screener and is easy to refresh manually.
+Universes are plain CSV files under `agent/data/`, one ticker per line.
+Comments (`#`) and blank lines are ignored. Drop in new CSVs any time —
+they are auto-discovered by the `auto` option.
 
-To refresh the CSV, edit `agent/data/sp500.csv` (one ticker per line). If
-Yahoo's symbol differs (e.g. `BRK-B` vs `BRK.B`), match Yahoo's convention.
+Shipped:
+  - sp500.csv         starter S&P 500 subset (expand freely)
+  - nasdaq100.csv     full Nasdaq 100
+
+Add your own (e.g. `russell1000.csv`) by creating the file and setting
+`universe: russell1000` in rules.yml.
+
+`rules.yml` `universe:` values:
+  watchlist             only the user's watchlist.yml tickers
+  sp500                 sp500.csv
+  nasdaq100             nasdaq100.csv
+  sp500_plus_watchlist  default; sp500.csv ∪ watchlist
+  russell1000           russell1000.csv (create this file yourself)
+  all                   union of every *.csv in agent/data/ ∪ watchlist
+  <any filename stem>   e.g. "tadawul" will load tadawul.csv
 """
 from __future__ import annotations
 
 from pathlib import Path
 
 
-_SP500_CSV = Path(__file__).parent / "sp500.csv"
+_DATA_DIR = Path(__file__).parent
+
+
+def _read_csv(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    out: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        t = line.strip()
+        if not t or t.startswith("#"):
+            continue
+        out.append(t.upper())
+    return out
+
+
+def load_csv(stem: str) -> list[str]:
+    return _read_csv(_DATA_DIR / f"{stem}.csv")
 
 
 def sp500_tickers() -> list[str]:
-    if not _SP500_CSV.exists():
-        return []
-    lines = _SP500_CSV.read_text(encoding="utf-8").splitlines()
-    return [ln.strip().upper() for ln in lines if ln.strip() and not ln.startswith("#")]
+    return load_csv("sp500")
+
+
+def all_csvs() -> list[str]:
+    seen: set[str] = set()
+    for csv in sorted(_DATA_DIR.glob("*.csv")):
+        for t in _read_csv(csv):
+            seen.add(t)
+    return sorted(seen)
 
 
 def build_universe(setting: str, watchlist: list[str]) -> list[str]:
@@ -27,7 +61,12 @@ def build_universe(setting: str, watchlist: list[str]) -> list[str]:
     wl = [t.upper() for t in watchlist]
     if setting == "watchlist":
         return sorted(set(wl))
-    if setting == "sp500":
-        return sorted(set(sp500_tickers()))
-    # default: sp500 ∪ watchlist
-    return sorted(set(sp500_tickers()) | set(wl))
+    if setting == "all":
+        return sorted(set(all_csvs()) | set(wl))
+    if setting == "sp500_plus_watchlist":
+        return sorted(set(load_csv("sp500")) | set(wl))
+    # Any other value: look up a CSV by that name.
+    tickers = load_csv(setting)
+    if not tickers:
+        return sorted(set(wl))
+    return sorted(set(tickers) | set(wl))

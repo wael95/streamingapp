@@ -11,7 +11,17 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from agent.tools import context_io, fundamentals, news, quotes, screen, whatsapp
+from agent.tools import (
+    context_io,
+    edgar,
+    fundamentals,
+    news,
+    news_sources,
+    quotes,
+    screen,
+    technicals,
+    whatsapp,
+)
 
 
 def _schema(name: str, desc: str, props: dict, required: list[str]) -> dict:
@@ -81,6 +91,39 @@ TOOL_SCHEMAS: list[dict] = [
         {"text": {"type": "string"}},
         ["text"],
     ),
+    _schema(
+        "get_technicals",
+        "Compute a full set of technical indicators for a ticker (SMA 20/50/200, EMA 12/26, RSI 14, MACD, Bollinger Bands, ATR, Stochastic, OBV, ADX, 52w high/low distance, golden/death cross flags). Free, offline, TradingView-parity.",
+        {"ticker": {"type": "string"}},
+        ["ticker"],
+    ),
+    _schema(
+        "get_insider_filings",
+        "Recent SEC Form 4 insider transactions for a ticker (officers and directors buying/selling). Returns date, insider name/title, action (buy/sell/award), shares, price, total value.",
+        {
+            "ticker": {"type": "string"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 30, "default": 10},
+        },
+        ["ticker"],
+    ),
+    _schema(
+        "get_recent_sec_filings",
+        "Recent 8-K / 10-Q / 10-K / S-1 filings for a ticker from SEC EDGAR (material events and quarterly/annual reports).",
+        {
+            "ticker": {"type": "string"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 30, "default": 10},
+        },
+        ["ticker"],
+    ),
+    _schema(
+        "get_deep_news",
+        "Broader news + sentiment fetch combining Yahoo RSS, StockTwits (with sentiment labels), Reddit (WSB/investing/stocks), and NewsAPI (if NEWSAPI_KEY set). Deduped and time-sorted.",
+        {
+            "ticker": {"type": "string"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 40, "default": 20},
+        },
+        ["ticker"],
+    ),
 ]
 
 
@@ -107,6 +150,17 @@ def dispatch(name: str, tool_input: dict, ctx: dict) -> str:
             return "error: bridge not available"
         whatsapp.send_whatsapp(bridge, tool_input["text"])
         return "sent"
+    if name == "get_technicals":
+        return _json(technicals.get_technicals(settings, tool_input["ticker"]))
+    if name == "get_insider_filings":
+        limit = int(tool_input.get("limit", 10))
+        return _json(edgar.get_insider_filings(settings, tool_input["ticker"], limit))
+    if name == "get_recent_sec_filings":
+        limit = int(tool_input.get("limit", 10))
+        return _json(edgar.get_recent_filings(settings, tool_input["ticker"], limit))
+    if name == "get_deep_news":
+        limit = int(tool_input.get("limit", 20))
+        return _json(news_sources.get_deep_news(tool_input["ticker"], limit))
     return f"error: unknown tool {name}"
 
 

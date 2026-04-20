@@ -45,6 +45,7 @@ class ScreenedTicker:
     market_cap: float | None
     pe_ratio: float | None
     sector: str | None
+    beta: float | None
     reasons: list[str]
 
 
@@ -79,7 +80,10 @@ def _closes_volumes(symbol: str, days: int) -> tuple[np.ndarray, np.ndarray]:
     return closes, vols
 
 
-def _metric_value(metric: str, symbol: str, closes, vols, fundamentals) -> Any:
+_BENCHMARK: np.ndarray = np.array([])
+
+
+def _metric_value(metric: str, symbol: str, closes, vols, fundamentals, benchmark=None) -> Any:
     if metric == "price":
         return float(closes[-1]) if closes.size else None
     if metric == "change_pct_1d":
@@ -101,6 +105,14 @@ def _metric_value(metric: str, symbol: str, closes, vols, fundamentals) -> Any:
         return fundamentals.market_cap if fundamentals else None
     if metric == "pe_ratio":
         return fundamentals.pe_ratio if fundamentals else None
+    if metric == "beta":
+        # Compute locally from SPY + stock closes in the cache.
+        if benchmark is None or benchmark.size == 0 or closes.size == 0:
+            return None
+        return ind.beta(closes, benchmark)
+    if metric == "beta_info":
+        # Yahoo's published beta, via fundamentals adapter.
+        return fundamentals.beta if fundamentals else None
     return None
 
 
@@ -117,10 +129,12 @@ def run_screen(settings: Settings, rules_override: dict | None = None) -> list[d
         return []
 
     # Only touch fundamentals when a rule needs them.
-    needs_fund = any(
-        c.get("metric") in ("market_cap", "pe_ratio") for c in conditions
-    )
+    fund_metrics = {"market_cap", "pe_ratio", "beta_info"}
+    needs_fund = any(c.get("metric") in fund_metrics for c in conditions)
     adapter = get_adapter(settings.data_adapter) if needs_fund else None
+
+    # Benchmark closes for local beta (one-time read).
+    benchmark_closes, _ = _closes_volumes("SPY", lookback)
 
     passed: list[ScreenedTicker] = []
     for sym in tickers:
@@ -138,13 +152,16 @@ def run_screen(settings: Settings, rules_override: dict | None = None) -> list[d
         ok = True
         for c in conditions:
             m, op, val = c.get("metric"), c.get("op"), c.get("value")
-            x = _metric_value(m, sym, closes, vols, fundamentals)
+            x = _metric_value(m, sym, closes, vols, fundamentals, benchmark_closes)
             if not _cmp(op, x, val):
                 ok = False
                 break
             reasons.append(f"{m} {op} {val} (={_fmt(x)})")
         if not ok:
             continue
+
+        # Compute beta once per passing ticker for display even if not filtered.
+        t_beta = ind.beta(closes, benchmark_closes) if benchmark_closes.size else None
 
         passed.append(
             ScreenedTicker(
@@ -155,6 +172,7 @@ def run_screen(settings: Settings, rules_override: dict | None = None) -> list[d
                 market_cap=fundamentals.market_cap if fundamentals else None,
                 pe_ratio=fundamentals.pe_ratio if fundamentals else None,
                 sector=fundamentals.sector if fundamentals else None,
+                beta=t_beta,
                 reasons=reasons,
             )
         )

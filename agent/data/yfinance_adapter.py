@@ -106,6 +106,7 @@ class YFinanceAdapter(StockDataAdapter):
             sector=info.get("sector"),
             industry=info.get("industry"),
             next_earnings=next_earn,
+            beta=_f(info.get("beta") or info.get("beta3Year")),
         )
 
     @retry(**_RETRY)

@@ -1,10 +1,19 @@
 # Screening rules for Agent B ("what to buy").
-# universe: sp500 | sp500_plus_watchlist | watchlist
-# Conditions supported (metric + op + value):
-#   market_cap, pe_ratio, avg_volume_30d, rsi_14, sma_cross,
-#   price_vs_sma200, change_pct_5d, change_pct_1d, price
+#
+# universe:
+#   watchlist              your watchlist.yml only
+#   sp500                  agent/data/sp500.csv
+#   nasdaq100              agent/data/nasdaq100.csv
+#   sp500_plus_watchlist   default
+#   russell1000            agent/data/russell1000.csv (run scripts/refresh_universes.py to create)
+#   all                    union of every CSV in agent/data/ ∪ watchlist
+#
+# Conditions (metric + op + value):
+#   From OHLCV cache (fast): avg_volume_30d, rsi_14, sma_cross,
+#     price_vs_sma200, change_pct_5d, change_pct_1d, price, beta
+#   From adapter (slower):   market_cap, pe_ratio, beta_info
 # Ops: ==, !=, >, >=, <, <=, between ([lo, hi])
-# Tune freely — this is your starter set. Delete rules you don't want.
+# Tune freely — this is a starter set.
 
 universe: sp500_plus_watchlist
 lookback_days: 260
@@ -12,7 +21,8 @@ conditions:
   - {metric: avg_volume_30d,  op: ">=", value: 1000000}
   - {metric: price_vs_sma200, op: ">=", value: 1.0}
   - {metric: rsi_14,          op: "between", value: [30, 55]}
-  # Uncomment to add fundamentals (slower, pulls from adapter):
+  - {metric: beta,            op: "<=", value: 1.5}
+  # Uncomment for fundamentals (slower, pulls from adapter):
   # - {metric: market_cap, op: ">=", value: 5000000000}
   # - {metric: pe_ratio,   op: "<=", value: 35}
 max_results: 15

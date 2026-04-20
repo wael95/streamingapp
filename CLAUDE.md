@@ -114,14 +114,24 @@ agent/                       Python package
     chat_agent.py            Agent C (ad-hoc, per-JID memory)
   tools/
     __init__.py              TOOL_SCHEMAS + dispatch()
-    quotes.py news.py fundamentals.py screen.py context_io.py whatsapp.py
+    quotes.py                get_quote
+    news.py                  get_news (adapter's basic news)
+    fundamentals.py          get_fundamentals (now includes beta)
+    screen.py                screen_stocks
+    context_io.py            read_context, log_report
+    whatsapp.py              send_whatsapp (locked to OWNER_JID)
+    technicals.py            get_technicals (pandas-ta, TV-parity)
+    edgar.py                 get_insider_filings, get_recent_sec_filings
+    news_sources.py          get_deep_news (Yahoo RSS + StockTwits + Reddit + NewsAPI)
   data/
     base.py                  StockDataAdapter ABC
     yfinance_adapter.py      default; tenacity-wrapped
+    alpaca_adapter.py        realtime IEX quotes (free tier, needs keys)
     finnhub_adapter.py       stub
     alpha_vantage_adapter.py stub
-    universe.py              S&P 500 ∪ watchlist loader
-    sp500.csv                static list (starter ~120 names; expand freely)
+    universe.py              auto-discovers every *.csv in this dir
+    sp500.csv                static list (refresh via scripts/refresh_universes.py)
+    nasdaq100.csv            Nasdaq 100 components
     ohlcv_cache.py           nightly pre-fetch
   screening/
     engine.py                YAML rules -> pandas filter

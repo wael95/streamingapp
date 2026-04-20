@@ -14,6 +14,9 @@ def get_adapter(name: str) -> StockDataAdapter:
     if name == "yfinance":
         from agent.data.yfinance_adapter import YFinanceAdapter
         return YFinanceAdapter()
+    if name == "alpaca":
+        from agent.data.alpaca_adapter import AlpacaAdapter
+        return AlpacaAdapter()
     if name == "finnhub":
         from agent.data.finnhub_adapter import FinnhubAdapter
         return FinnhubAdapter()

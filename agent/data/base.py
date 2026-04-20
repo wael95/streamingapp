@@ -33,6 +33,7 @@ class Fundamentals:
     sector: str | None
     industry: str | None
     next_earnings: date | None
+    beta: float | None = None
 
 
 @dataclass

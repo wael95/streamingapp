@@ -1,12 +1,18 @@
 # Default watchlist. Agent A reads this every day at 15:50 Riyadh.
-# You can edit directly, or send "!watch ADD NVDA" / "!watch REMOVE NVDA"
-# on WhatsApp.
+# Edit freely here, or send "!watch ADD XXX" / "!watch REMOVE XXX" on WhatsApp.
 tickers:
-  - AAPL
-  - NVDA
-  - MSFT
-  - TSLA
-  - GOOGL
+  - MNTS
+  - FCHL
+  - VCIG
+  - AMOD
+  - RCT
+  - REVB
+  - KITT
 notes:
-  AAPL: core position
-  NVDA: trim above $X if Y happens
+  MNTS: Momentus
+  FCHL: small-cap watch
+  VCIG: small-cap watch
+  AMOD: small-cap watch
+  RCT: small-cap watch
+  REVB: small-cap watch
+  KITT: small-cap watch

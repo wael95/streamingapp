@@ -1,16 +1,17 @@
 """Agent B — daily small-cap momentum SCAN at 15:30 Riyadh (pre-market).
 
 Implements Mode 1 from config/context.md: scan the US market for pre-
-market gainers matching the hard filters (price < $5, change >= +20%,
-sector is green), then score each candidate on the preferred/negative
-signals and produce a ranked list in Arabic.
+market gainers matching the hard filters (price < $5, change >= +20%),
+then score each candidate on the preferred/negative signals (including
+sector-green as a bonus and shares-outstanding range preference) and
+produce a ranked list in Arabic.
 
 Token efficiency: we do NOT have Claude iterate over thousands of
 tickers. get_top_gainers returns a pre-filtered list of ~5-30
 candidates, and Claude only evaluates those.
 
-Uses Sonnet to keep the cost low (see `SONNET_MODEL` in .env). Switch
-back to Opus if ranking quality matters more than cost.
+Uses Sonnet to keep the cost low. Switch back to Opus via SONNET_MODEL
+override if ranking quality matters more than cost.
 """
 from __future__ import annotations
 
@@ -22,57 +23,69 @@ from agent.bridge_client import BridgeClient
 
 log = logging.getLogger(__name__)
 
-INSTRUCTIONS = """You are running the DAILY SCAN (Mode 1 from the cached strategy).
+INSTRUCTIONS = """You are running the DAILY PRE-MARKET SCAN (Mode 1 from the cached
+strategy).
+
+CRITICAL — DATA SOURCE:
+  All price/move data must come from the CURRENT DAY'S PRE-MARKET
+  session, not yesterday's close. Always call get_top_gainers with
+  premarket=True. If the tool returns data that looks like yesterday's
+  session (e.g., negligible changes across the board while the market
+  is closed), note it in the report but still run the scan.
 
 Step-by-step workflow:
 
   1. Call get_top_gainers(max_price=5, min_change_pct=20, premarket=True).
-     This returns the candidates that pass the hard price/change filter.
-     If empty, call send_whatsapp with "لا توجد فرص اليوم تطابق المعايير." and stop.
+     HARD FILTERS: price<$5 and change>=+20% TODAY (pre-market). If
+     empty, send_whatsapp("لا توجد فرص اليوم تطابق المعايير في ما قبل السوق.") and stop.
 
-  2. Call get_sector_performance() ONCE to know which sectors are green.
-     A candidate is only eligible if its sector is green today.
-     (You'll see the sector for each candidate after the next step.)
+  2. Call get_sector_performance() ONCE (all sectors) so you know which
+     sectors are green. Sector-green is now a BONUS signal (not a hard
+     filter) — candidates from red sectors still qualify but lose 1
+     bonus point.
 
-  3. For each remaining candidate (cap at the top 8 by change_pct),
-     call get_fundamentals(ticker) to collect:
-       - sector (to confirm it's green)
-       - market_cap, float_shares, shares_outstanding
-       - insider_ownership_pct + institutional_ownership_pct
-         (major shareholder ownership = sum of these two, rough proxy)
-       - last_split_date / last_split_ratio
-     Drop candidates whose sector is NOT green.
+  3. Cap the list to the TOP 8 candidates by change_pct.
 
-  4. For each surviving candidate, ALSO call:
-       - get_technicals(ticker) -> RSI, volume context
-       - get_deep_news(ticker, limit=5) -> is there a catalyst?
-     Keep it to ONE call of each per ticker to save tokens.
+  4. For each candidate, call ONCE each:
+       - get_fundamentals(ticker)     -> sector, shares_outstanding,
+                                         float_shares, insider_ownership_pct,
+                                         institutional_ownership_pct,
+                                         last_split_date/ratio
+       - get_technicals(ticker)        -> rsi_14, avg volume context
+       - get_deep_news(ticker, limit=5) -> catalyst check
+     Do NOT call any of these twice. If a field is missing, write "—".
 
-  5. Score each candidate out of 10 using the strategy:
-       Preferred signals (each +1, except major shareholder which is +2):
-         - Low float (float_shares low relative to shares_outstanding)
-         - Major shareholder ownership > 30%  (weight x2)
-         - Volume >= 10x avg daily volume
-         - RSI < 30
-         - News catalyst present
-       Negative signals (each -1):
+  5. Score each candidate out of 10:
+       Preferred signals (+1 each unless noted):
+         - Sector is green today              +1
+         - Low float (float_shares small)     +1
+         - Major shareholder ownership > 30%  +2  (weight x2, most important)
+           (major = insider_ownership_pct + institutional_ownership_pct)
+         - Volume >= 10x avg daily volume     +1
+         - RSI_14 < 30                        +1
+         - News catalyst in last 48h          +1
+         - Shares outstanding in [1M, 30M]    +1
+       Negative signals (-1 each):
          - Shares outstanding > 30M
-       Clip to 0..10.
-     Recommendation:
-       score >= 7  -> شراء
-       score 4..6  -> مراقبة
-       else        -> تجاهل
+         - Shares outstanding < 1M
+       Max bonus = 8 (+1 each + +2 major shareholder). Normalize to /10
+       by scaling (final = round(raw * 10 / 8), clipped to 0..10).
 
-  6. Send one WhatsApp message in Arabic. Structure:
+     Recommendation by score:
+         >= 7  -> شراء
+         4..6  -> مراقبة
+         else  -> تجاهل
 
-     فحص السوق — <date pre-market>
-     <for each candidate, highest score first>
+  6. Send ONE WhatsApp message in Arabic, highest score first:
 
+     فحص ما قبل السوق — <date>
+
+     <for each candidate>
      <TICKER>  السعر $<price>  (+<change_pct>%)
-     القطاع: <sector> [✅ أخضر / ❌ أحمر]
-     السيولة: <volume> (×<rel vs avg> المعدل اليومي)
+     القطاع: <sector>  [أخضر ✅ / أحمر ❌]
+     السيولة: <volume> (×<rel vs avg> المعدل)
      الفلوت: <float_shares>  |  الأسهم الكلية: <shares_outstanding>
-     حصة المساهمين الأساسيين: <insider_ownership + institutional_ownership>%
+     حصة المساهمين الأساسيين: <insider+institutional>%
      RSI 14: <rsi>
      محفّز: <1-line news or "لا يوجد">
      آخر تقسيم: <date + ratio, or "لا يوجد">
@@ -85,20 +98,18 @@ Step-by-step workflow:
   7. Call log_report(kind='buy', payload={...picks}).
 
 CRITICAL — OUTPUT LANGUAGE:
-  The final send_whatsapp text MUST be in Arabic. Tickers/numbers stay in
-  Latin/digits. Never invent numbers; if a field is missing from tools,
-  write "—" and skip its score contribution.
+  The final send_whatsapp text MUST be in Arabic. Tickers, prices,
+  percentages, and dates stay in Latin/digits. Never invent numbers.
 
 CRITICAL — TOKEN BUDGET:
-  Do not call any tool more than once per ticker. Do not scan more than
-  8 candidates end-to-end."""
+  One call per source per ticker. No more than 8 candidates end-to-end."""
 
 
 def run(settings: Settings, bridge: BridgeClient, broadcast: bool = True) -> str:
     return run_agent(
         settings,
         bridge,
-        model=settings.sonnet_model,  # was opus; strategy keeps scan cheap
+        model=settings.sonnet_model,
         role_instructions=INSTRUCTIONS,
         user_message="Run the pre-market small-cap momentum scan now.",
         broadcast=broadcast,

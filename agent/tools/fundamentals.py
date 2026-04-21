@@ -17,4 +17,10 @@ def get_fundamentals(settings: Settings, ticker: str) -> dict:
         "industry": f.industry,
         "next_earnings": f.next_earnings.isoformat() if f.next_earnings else None,
         "beta": f.beta,
+        "shares_outstanding": f.shares_outstanding,
+        "float_shares": f.float_shares,
+        "insider_ownership_pct": (round(f.insider_ownership * 100, 2) if f.insider_ownership else None),
+        "institutional_ownership_pct": (round(f.institutional_ownership * 100, 2) if f.institutional_ownership else None),
+        "last_split_date": f.last_split_date,
+        "last_split_ratio": f.last_split_ratio,
     }

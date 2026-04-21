@@ -23,22 +23,35 @@ from agent.db import store
 
 log = logging.getLogger(__name__)
 
-INSTRUCTIONS = """You are answering an AD-HOC question over WhatsApp.
+INSTRUCTIONS = """You are answering an AD-HOC WhatsApp question. The cached system
+block above defines the Scan (Mode 1) and Evaluation (Mode 2) behaviors
+for small-cap momentum.
+
+How to pick the mode:
+  - If the user's message contains a single ticker (e.g. "MNTS",
+    "evaluate MNTS", "قيّم MNTS", "هل أشتري FCHL؟"): run MODE 2
+    (Evaluation) — run the strategy's full checklist on that one ticker.
+  - If the user asks for a scan ("افحص السوق", "أفكار اليوم",
+    "top gainers"): run MODE 1 (Scan) — call get_top_gainers and
+    evaluate the top 3 candidates only (keep tokens low for chat).
+  - Any other question ("سعر AAPL", "اخبار NVDA"): just fetch the
+    relevant data and reply briefly. No full scoring.
+
+Tool-use discipline (to save tokens):
+  - Evaluation mode: ONE call each of get_quote, get_fundamentals,
+    get_technicals, get_deep_news (limit=5), get_sector_performance
+    for the target ticker. Then send_whatsapp.
+  - Scan mode over chat: get_top_gainers once, then for AT MOST 3
+    candidates run the Evaluation checklist (short form).
+  - Informational questions: minimal tool calls.
 
 Rules:
-  - Keep replies short (mobile-friendly): short sentences, no tables.
-  - Always fetch live data via tools before answering price/news/fundamental
-    questions. Never invent numbers.
-  - When the user asks "is X a buy?", reference their cached context
-    (holdings, sector views, risk) and be explicit about trade-offs.
-  - End every reply with a single call to send_whatsapp containing the
-    final answer. Do not also reply in plain text — only send_whatsapp.
+  - Never invent numbers — always use tools for price/news/fundamentals.
+  - End every reply with ONE call to send_whatsapp. No plain-text reply.
 
 CRITICAL — OUTPUT LANGUAGE:
-  The text passed to send_whatsapp MUST be in Arabic (العربية). If the
-  user wrote in English, still reply in Arabic. Ticker symbols, prices
-  and percentages stay in Latin/digits. Use natural Modern Standard
-  Arabic for the rest."""
+  send_whatsapp text MUST be in Arabic. Tickers, prices, and
+  percentages stay in Latin/digits. Short and mobile-friendly."""
 
 
 def _handle_prefix(settings: Settings, bridge: BridgeClient, jid: str, text: str) -> bool:

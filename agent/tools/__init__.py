@@ -15,10 +15,12 @@ from agent.tools import (
     context_io,
     edgar,
     fundamentals,
+    market_movers,
     news,
     news_sources,
     quotes,
     screen,
+    sector,
     technicals,
     whatsapp,
 )
@@ -124,6 +126,25 @@ TOOL_SCHEMAS: list[dict] = [
         },
         ["ticker"],
     ),
+    _schema(
+        "get_top_gainers",
+        "Market-wide scan for today's biggest gainers, pre-filtered by price and % change. Uses an external screener (FMP > Finviz > yfinance). For the small-cap momentum strategy, defaults are max_price=5, min_change_pct=20, premarket=true.",
+        {
+            "max_price": {"type": "number", "default": 5, "description": "Maximum share price"},
+            "min_change_pct": {"type": "number", "default": 20, "description": "Minimum % move today"},
+            "premarket": {"type": "boolean", "default": True, "description": "Prefer pre-market gainers when US market hasn't opened"},
+            "limit": {"type": "integer", "default": 40},
+        },
+        [],
+    ),
+    _schema(
+        "get_sector_performance",
+        "Get today's performance for US sectors via sector ETFs (XLK/XLF/XLV/XLE/...). If ticker is given, returns only that ticker's sector and whether it's green; otherwise returns all sectors.",
+        {
+            "ticker": {"type": "string", "description": "Optional: return only this ticker's sector"}
+        },
+        [],
+    ),
 ]
 
 
@@ -166,6 +187,15 @@ def dispatch(name: str, tool_input: dict, ctx: dict) -> str:
     if name == "get_deep_news":
         limit = int(tool_input.get("limit", 20))
         return _json(news_sources.get_deep_news(tool_input["ticker"], limit))
+    if name == "get_top_gainers":
+        return _json(market_movers.get_top_gainers(
+            max_price=tool_input.get("max_price", 5),
+            min_change_pct=tool_input.get("min_change_pct", 20),
+            premarket=bool(tool_input.get("premarket", True)),
+            limit=int(tool_input.get("limit", 40)),
+        ))
+    if name == "get_sector_performance":
+        return _json(sector.get_sector_performance(settings, tool_input.get("ticker")))
     return f"error: unknown tool {name}"
 
 

@@ -1,5 +1,4 @@
 .env
-config/context.md
 whatsapp_bridge/auth/
 whatsapp_bridge/node_modules/
 /logs/

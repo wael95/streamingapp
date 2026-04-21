@@ -102,6 +102,9 @@ class YFinanceAdapter(StockDataAdapter):
                 market_cap=None, pe_ratio=None, eps=None,
                 dividend_yield=None, sector=None, industry=None,
                 next_earnings=None, beta=None,
+                shares_outstanding=None, float_shares=None,
+                insider_ownership=None, institutional_ownership=None,
+                last_split_date=None, last_split_ratio=None,
             )
 
     @retry(**_RETRY)
@@ -125,6 +128,22 @@ class YFinanceAdapter(StockDataAdapter):
                         next_earn = d0
         except Exception:
             pass
+        # Splits: yfinance exposes a pandas Series indexed by timestamp,
+        # values are split ratios (e.g. 0.25 for a 1-for-4 reverse).
+        last_split_date = None
+        last_split_ratio = None
+        try:
+            sp = t.splits
+            if sp is not None and len(sp) > 0:
+                d0 = sp.index[-1]
+                last_split_date = d0.date().isoformat() if hasattr(d0, "date") else str(d0)[:10]
+                ratio = float(sp.iloc[-1])
+                if ratio < 1 and ratio > 0:
+                    last_split_ratio = f"1:{round(1 / ratio)}"  # reverse
+                else:
+                    last_split_ratio = f"{round(ratio)}:1"       # forward
+        except Exception:
+            pass
         return Fundamentals(
             symbol=symbol.upper(),
             market_cap=_f(info.get("marketCap")),
@@ -135,6 +154,12 @@ class YFinanceAdapter(StockDataAdapter):
             industry=info.get("industry"),
             next_earnings=next_earn,
             beta=_f(info.get("beta") or info.get("beta3Year")),
+            shares_outstanding=_f(info.get("sharesOutstanding")),
+            float_shares=_f(info.get("floatShares")),
+            insider_ownership=_f(info.get("heldPercentInsiders")),
+            institutional_ownership=_f(info.get("heldPercentInstitutions")),
+            last_split_date=last_split_date,
+            last_split_ratio=last_split_ratio,
         )
 
     def news(self, symbol: str, limit: int = 5) -> list[NewsItem]:

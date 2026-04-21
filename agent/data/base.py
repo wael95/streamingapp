@@ -34,6 +34,13 @@ class Fundamentals:
     industry: str | None
     next_earnings: date | None
     beta: float | None = None
+    # Small-cap momentum fields (strategy-relevant):
+    shares_outstanding: float | None = None
+    float_shares: float | None = None
+    insider_ownership: float | None = None       # 0..1
+    institutional_ownership: float | None = None # 0..1
+    last_split_date: str | None = None           # ISO yyyy-mm-dd
+    last_split_ratio: str | None = None          # e.g. "1:4" (reverse) or "4:1"
 
 
 @dataclass

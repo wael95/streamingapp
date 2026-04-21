@@ -11,24 +11,27 @@ Triggered when the user provides a specific ticker. Evaluate that single stock a
 Data source note (CRITICAL for Scan Mode):
 The daily move and quote data MUST come from the PRE-MARKET session of
 the current trading day, not from yesterday's close. When calling
-get_top_gainers, always pass premarket=true. When evaluating a single
-ticker in pre-market hours, use the pre-market price if available.
-Do NOT rank stocks based on yesterday's session.
+get_top_gainers, always pass premarket=true.
 
 Screening Criteria
 
 Hard Filters (must be met)
 - Price: under $5
-- Daily move: stock is up ≥ 20% in the current session / pre-market (required to flag)
+- Daily move: stock is up ≥ 20% in the current pre-market session
+- Cleanliness: NO single-day rise > 30% during the last 10 trading days
+  (we want a fresh setup, not a stock that already ran)
 
 Preferred Signals (positive points, not required)
-- Sector is green in the current session (bonus, no longer a hard filter)
+- Sector is green in the current session
 - Free float: low (lower is better)
-- Major shareholder ownership (حصة المساهمين الأساسيين): above 30% — this is the most important preferred signal; the higher, the better
-- Volume: ≥ 10× average daily volume
+- Major shareholder ownership (حصة المساهمين الأساسيين): above 30% — most important; the higher, the better
+- Volume: ≥ 2-3× average daily volume (initial threshold; can be tuned)
 - RSI: below 30 (oversold)
 - News catalyst: recent news, PR, or filing driving the move
-- Shares outstanding: between 1,000,000 and 30,000,000 (preferred range — small enough to move, large enough to trade)
+- Shares outstanding: between 1,000,000 and 30,000,000
+- Chart pattern: a prior sharp rise then a meaningful drop
+  (i.e., peaked in the last 60 days, then pulled back ≥ 30% from that peak,
+  and the peak was at least 5 trading days ago)
 
 Negative Signals (reduce score, not auto-reject)
 - Shares outstanding: above 30,000,000 (too diluted)

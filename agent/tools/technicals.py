@@ -129,6 +129,31 @@ def get_technicals(settings: Settings, ticker: str) -> dict:
     s50 = _last(sma50)
     s200 = _last(sma200)
 
+    # Cleanliness check: largest single-day rise in the last 10 trading days.
+    # Used as a hard filter to skip stocks that already exploded recently.
+    last10 = close.tail(11)  # need 11 closes to get 10 daily changes
+    max_1d_last10 = None
+    if len(last10) >= 2:
+        ch = last10.pct_change().dropna() * 100
+        max_1d_last10 = float(ch.max()) if not ch.empty else None
+
+    # Spike-then-drop pattern detection over the last 60 trading days.
+    # Looking for: a peak somewhere in the window, the peak was >= 5 bars
+    # ago, and current price is at least 30% below that peak.
+    win = close.tail(60)
+    pct_below_60d_peak = None
+    bars_since_60d_peak = None
+    spike_then_drop = False
+    if len(win) >= 10:
+        peak = float(win.max())
+        peak_idx = int(win.values.argmax())
+        bars_since_60d_peak = len(win) - 1 - peak_idx
+        if peak > 0 and last_close > 0:
+            pct_below_60d_peak = round((last_close / peak - 1) * 100, 2)
+            spike_then_drop = bool(
+                pct_below_60d_peak <= -30 and bars_since_60d_peak >= 5
+            )
+
     return {
         "symbol": ticker.upper(),
         "price": _round(last_close, 2),
@@ -157,4 +182,8 @@ def get_technicals(settings: Settings, ticker: str) -> dict:
         "above_sma200": bool(s200 is not None and last_close > s200),
         "golden_cross_recent": cross_recent(sma50, sma200, up=True),
         "death_cross_recent": cross_recent(sma50, sma200, up=False),
+        "max_1d_change_last_10d": _round(max_1d_last10, 2),
+        "pct_below_60d_peak": pct_below_60d_peak,
+        "bars_since_60d_peak": bars_since_60d_peak,
+        "spike_then_drop": spike_then_drop,
     }

@@ -87,7 +87,10 @@ def run_agent(
 
     history: list[dict[str, Any]] = []
     if session_id:
-        history = store.get_session(session_id)[-40:]  # keep last ~20 turns
+        # Defensive: any session saved by an older build may still contain
+        # tool_use / tool_result blocks that would break Claude on reload.
+        # Re-simplify whatever we read before using it.
+        history = _simplify_history(store.get_session(session_id))[-40:]
     history.append({"role": "user", "content": user_message})
 
     # `reply_to` is consumed by the send_whatsapp tool. Scheduled jobs
@@ -147,6 +150,48 @@ def run_agent(
         history.append({"role": "user", "content": tool_results})
 
     if session_id:
-        store.save_session(session_id, history)
+        store.save_session(session_id, _simplify_history(history))
 
     return final_text
+
+
+def _simplify_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compress persistent session history to plain-text turns only.
+
+    The live in-loop `history` contains tool_use (assistant) and
+    tool_result (user) blocks. Persisting those across turns causes
+    Anthropic API 400s on reload: trimming to [-40:] can leave an
+    orphan `tool_result` at index 0 with no preceding `tool_use`, or
+    two adjacent user messages. Since cross-turn memory only needs the
+    user's question and Claude's final answer, we collapse each
+    assistant turn to its concatenated text blocks and drop any user
+    turn whose content is a tool_result list.
+    """
+    simplified: list[dict[str, Any]] = []
+    for msg in history:
+        role = msg.get("role")
+        content = msg.get("content")
+        if role == "user":
+            if isinstance(content, str) and content.strip():
+                simplified.append({"role": "user", "content": content})
+            # Drop tool_result lists — they carry no cross-turn meaning.
+        elif role == "assistant":
+            if isinstance(content, str):
+                simplified.append(msg)
+            elif isinstance(content, list):
+                texts = [
+                    b.get("text", "") for b in content
+                    if isinstance(b, dict) and b.get("type") == "text"
+                ]
+                joined = "\n".join(t for t in texts if t).strip()
+                if joined:
+                    simplified.append({"role": "assistant", "content": joined})
+    # Avoid two consecutive same-role messages (a compressed artifact
+    # that the API also rejects).
+    deduped: list[dict[str, Any]] = []
+    for msg in simplified:
+        if deduped and deduped[-1]["role"] == msg["role"]:
+            deduped[-1] = msg
+        else:
+            deduped.append(msg)
+    return deduped

@@ -51,17 +51,19 @@ def build_scheduler(settings: Settings, bridge: BridgeClient) -> BackgroundSched
             log.exception("buy_agent failed")
 
     # Schedule (Asia/Riyadh, weekdays):
-    #   03:00  nightly OHLCV refresh (no API/WhatsApp, just cache warm-up)
-    #   15:30  buy scan (Mode 1 per context.md — pre-market gainers scan)
-    #   15:50  watchlist digest (the 7 small-caps in watchlist.yml)
-    # US pre-market runs 04:00-09:30 ET; 15:30 Riyadh = 08:30 ET (mid-pre-market),
-    # 15:50 Riyadh = 08:50 ET (40 min before US open).
+    #   03:00        nightly OHLCV refresh (no API/WhatsApp)
+    #   10:50, 12:50, 14:50, 16:50, 18:50, 20:50, 22:50
+    #                buy-scan every 2 hours. Covers both US pre-market
+    #                (up to 16:30 Riyadh) and US regular session
+    #                (16:30-23:00 Riyadh). get_top_gainers auto-picks
+    #                the right session based on current US clock.
+    #   15:50        watchlist digest (user's custom tickers)
     sched.add_job(
         _refresh, CronTrigger(day_of_week="mon-fri", hour=3, minute=0),
         id="refresh_universe", replace_existing=True,
     )
     sched.add_job(
-        _buy, CronTrigger(day_of_week="mon-fri", hour=15, minute=30),
+        _buy, CronTrigger(day_of_week="mon-fri", hour="10,12,14,16,18,20,22", minute=50),
         id="buy_agent", replace_existing=True,
     )
     sched.add_job(

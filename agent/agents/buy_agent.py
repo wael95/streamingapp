@@ -1,17 +1,19 @@
-"""Agent B — daily small-cap momentum SCAN at 15:30 Riyadh (pre-market).
+"""Agent B — small-cap momentum SCAN.
 
-Implements Mode 1 from config/context.md: scan the US market for pre-
-market gainers matching the hard filters (price < $5, change >= +20%),
-then score each candidate on the preferred/negative signals (including
-sector-green as a bonus and shares-outstanding range preference) and
-produce a ranked list in Arabic.
+Runs every 2 hours on weekdays at :50 past the hour:
+  10:50, 12:50, 14:50, 16:50, 18:50, 20:50, 22:50 Riyadh.
+That covers the full US pre-market (04:00-09:30 ET = 11:00-16:30 Riyadh)
+and the full US regular session (09:30-16:00 ET = 16:30-23:00 Riyadh).
+get_top_gainers auto-picks pre-market vs regular-session data based on
+the US clock, so a single job works across the whole span.
 
-Token efficiency: we do NOT have Claude iterate over thousands of
-tickers. get_top_gainers returns a pre-filtered list of ~5-30
-candidates, and Claude only evaluates those.
+Price ceiling is $10 (not $5) so stocks that popped from sub-$5 into
+single-digits are still caught; the historical sub-$5 quality is
+detectable via technicals (lo_52w, pct_below_60d_peak).
 
-Uses Sonnet to keep the cost low. Switch back to Opus via SONNET_MODEL
-override if ranking quality matters more than cost.
+Token efficiency: get_top_gainers pre-filters to ~5-30 candidates and
+Claude only evaluates up to 8 after the 10-day cleanliness drop. Each
+run costs roughly $0.01-0.03 depending on how many candidates survive.
 """
 from __future__ import annotations
 
@@ -23,21 +25,24 @@ from agent.bridge_client import BridgeClient
 
 log = logging.getLogger(__name__)
 
-INSTRUCTIONS = """You are running the DAILY PRE-MARKET SCAN (Mode 1 from the cached
-strategy).
+INSTRUCTIONS = """You are running a MARKET SCAN (Mode 1 from the cached strategy).
+This job runs every 2 hours from 10:50 to 22:50 Riyadh on weekdays.
+Whether we're in US pre-market or regular session is decided
+automatically by the get_top_gainers tool based on the current US clock.
 
 CRITICAL — DATA SOURCE:
-  All price/move data must come from the CURRENT DAY'S PRE-MARKET
-  session, not yesterday's close. Always call get_top_gainers with
-  premarket=True. If the tool returns data that looks like yesterday's
-  session (e.g., negligible changes across the board while the market
-  is closed), note it in the report but still run the scan.
+  Price/move data must come from the CURRENT live session. Call
+  get_top_gainers WITHOUT the `premarket` parameter — the tool auto-
+  picks pre-market during 04:00-09:30 ET (= 11:00-16:30 Riyadh) and
+  regular-session data otherwise. Do not use yesterday's close.
 
 Step-by-step workflow:
 
-  1. Call get_top_gainers(max_price=5, min_change_pct=20, premarket=True).
-     HARD FILTERS (initial): price<$5 and change>=+20% TODAY (pre-market).
-     If empty, send_whatsapp("لا توجد فرص اليوم تطابق المعايير في ما قبل السوق.") and stop.
+  1. Call get_top_gainers(max_price=10, min_change_pct=20).
+     HARD FILTERS (initial): current price <= $10 and change >= +20%
+     in the current live session. If empty, send_whatsapp with a SHORT
+     Arabic message: "جولة الفحص: لا توجد فرص جديدة." and stop (no
+     further tool calls — this keeps empty hours cheap).
 
   2. Call get_sector_performance() ONCE (all sectors) so you know which
      sectors are green. Sector-green is a BONUS signal (not a hard filter).
@@ -85,9 +90,11 @@ Step-by-step workflow:
          4..6  -> مراقبة
          else  -> تجاهل
 
-  6. Send ONE WhatsApp message in Arabic, highest score first:
+  6. Send ONE WhatsApp message in Arabic, highest score first.
+     Header should reflect the current session: "فحص ما قبل السوق"
+     if US is still in pre-market (< 09:30 ET), else "فحص السوق":
 
-     فحص ما قبل السوق — <date>
+     <header> — <date HH:MM Riyadh>
 
      <for each candidate>
      <TICKER>  السعر $<price>  (+<change_pct>%)
@@ -122,6 +129,6 @@ def run(settings: Settings, bridge: BridgeClient, broadcast: bool = True) -> str
         bridge,
         model=settings.sonnet_model,
         role_instructions=INSTRUCTIONS,
-        user_message="Run the pre-market small-cap momentum scan now.",
+        user_message="Run the small-cap momentum scan now for the current session.",
         broadcast=broadcast,
     )

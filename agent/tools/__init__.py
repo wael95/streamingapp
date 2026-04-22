@@ -128,11 +128,11 @@ TOOL_SCHEMAS: list[dict] = [
     ),
     _schema(
         "get_top_gainers",
-        "Market-wide scan for today's biggest gainers, pre-filtered by price and % change. Uses an external screener (FMP > Finviz > yfinance). For the small-cap momentum strategy, defaults are max_price=5, min_change_pct=20, premarket=true.",
+        "Market-wide scan for today's biggest gainers, pre-filtered by price and % change. Uses an external screener (FMP > Finviz > yfinance). Defaults: max_price=10, min_change_pct=20, premarket=null (auto based on US clock).",
         {
-            "max_price": {"type": "number", "default": 5, "description": "Maximum share price"},
+            "max_price": {"type": "number", "default": 10, "description": "Maximum share price"},
             "min_change_pct": {"type": "number", "default": 20, "description": "Minimum % move today"},
-            "premarket": {"type": "boolean", "default": True, "description": "Prefer pre-market gainers when US market hasn't opened"},
+            "premarket": {"type": ["boolean", "null"], "description": "true = force pre-market; false = force regular session; omit or null = auto-pick based on current US clock"},
             "limit": {"type": "integer", "default": 40},
         },
         [],
@@ -188,10 +188,11 @@ def dispatch(name: str, tool_input: dict, ctx: dict) -> str:
         limit = int(tool_input.get("limit", 20))
         return _json(news_sources.get_deep_news(tool_input["ticker"], limit))
     if name == "get_top_gainers":
+        pre = tool_input.get("premarket")
         return _json(market_movers.get_top_gainers(
-            max_price=tool_input.get("max_price", 5),
+            max_price=tool_input.get("max_price", 10),
             min_change_pct=tool_input.get("min_change_pct", 20),
-            premarket=bool(tool_input.get("premarket", True)),
+            premarket=pre if isinstance(pre, bool) else None,
             limit=int(tool_input.get("limit", 40)),
         ))
     if name == "get_sector_performance":

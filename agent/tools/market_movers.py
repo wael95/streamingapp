@@ -130,20 +130,41 @@ def _yf_screener() -> list[dict]:
     return out
 
 
+def _is_premarket_now_et() -> bool:
+    """True if US clock is currently in pre-market (04:00-09:30 ET) on a
+    weekday. Used when the caller passes premarket=None to auto-pick.
+    Uses UTC-4 (EDT) as an approximation — the two scheduled DST windows
+    are close enough for this purpose.
+    """
+    from datetime import datetime, timezone, timedelta
+    now_et = datetime.now(timezone(timedelta(hours=-4)))
+    if now_et.weekday() >= 5:
+        return False
+    minutes = now_et.hour * 60 + now_et.minute
+    return 4 * 60 <= minutes < 9 * 60 + 30
+
+
 def get_top_gainers(
-    max_price: float | None = 5.0,
+    max_price: float | None = 10.0,
     min_change_pct: float | None = 20.0,
-    premarket: bool = True,
+    premarket: bool | None = None,
     limit: int = 40,
 ) -> list[dict]:
     """Return pre-filtered gainers matching the strategy's hard filters.
 
-    Pre-market is preferred during the 15:30 Riyadh run (US pre-market
-    is active). If no provider returns pre-market data, falls back to
-    regular-session gainers.
+    `premarket`:
+      True  -> use pre-market endpoint (FMP) / pre-market-compatible source
+      False -> use regular-session gainers
+      None  -> auto-pick based on current US clock (pre-market or regular)
+
+    If nothing matches the requested session, we fall back to the other
+    session rather than return empty — the scan is more useful with
+    slightly stale data than with none.
     """
+    wanted_pre = _is_premarket_now_et() if premarket is None else bool(premarket)
+
     candidates: list[dict] = []
-    if premarket:
+    if wanted_pre:
         candidates = _fmp_movers(premarket=True)
     if not candidates:
         candidates = _fmp_movers(premarket=False)

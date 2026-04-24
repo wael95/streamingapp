@@ -152,31 +152,42 @@ def get_top_gainers(
 ) -> list[dict]:
     """Return pre-filtered gainers matching the strategy's hard filters.
 
-    `premarket`:
-      True  -> use pre-market endpoint (FMP) / pre-market-compatible source
-      False -> use regular-session gainers
-      None  -> auto-pick based on current US clock (pre-market or regular)
+    Unlike a fallback chain, this queries all available sources and
+    MERGES their results. FMP's free tier caps at ~20-30 names per
+    endpoint; Finviz's screener is deeper; yfinance covers different
+    slices. Micro-caps like ITOC (+35% at $0.40, 17M shares) were
+    being missed when we stopped at the first non-empty source, so we
+    now union everything.
 
-    If nothing matches the requested session, we fall back to the other
-    session rather than return empty — the scan is more useful with
-    slightly stale data than with none.
+    `premarket`:
+      True  -> prefer pre-market sources
+      False -> regular-session sources
+      None  -> auto-pick based on current US clock (pre-market if in
+               the 04:00-09:30 ET window, else regular)
     """
     wanted_pre = _is_premarket_now_et() if premarket is None else bool(premarket)
 
-    candidates: list[dict] = []
-    if wanted_pre:
-        candidates = _fmp_movers(premarket=True)
-    if not candidates:
-        candidates = _fmp_movers(premarket=False)
-    if not candidates:
-        candidates = _finviz_movers()
-    if not candidates:
-        candidates = _yf_screener()
+    by_symbol: dict[str, dict] = {}
+
+    def _merge(items: list[dict]) -> None:
+        for c in items:
+            sym = (c.get("symbol") or "").upper()
+            if not sym:
+                continue
+            # If the same symbol appears in multiple sources, prefer the
+            # largest change_pct (most aggressive move).
+            prev = by_symbol.get(sym)
+            if prev is None or c.get("change_pct", 0) > prev.get("change_pct", 0):
+                by_symbol[sym] = c
+
+    # Query every source; each one fails soft.
+    _merge(_fmp_movers(premarket=True))
+    _merge(_fmp_movers(premarket=False))
+    _merge(_finviz_movers())
+    _merge(_yf_screener())
 
     filtered: list[dict] = []
-    for c in candidates:
-        if not c.get("symbol"):
-            continue
+    for c in by_symbol.values():
         if max_price is not None and c.get("price", 0) > max_price:
             continue
         if min_change_pct is not None and c.get("change_pct", 0) < min_change_pct:
